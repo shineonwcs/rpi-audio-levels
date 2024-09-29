@@ -1,48 +1,64 @@
-# rpi-audio-levels
+# Audio Levels Calculation with FFTW on Raspberry Pi
 
-## Description
+This project allows you to calculate audio levels by frequency using the **FFTW** library on a Raspberry Pi. It is designed to process audio data and compute power spectrum levels across different frequency bands, leveraging **FFTW** for fast Fourier transformations (FFT).
 
-Python binding allowing to retrieve audio levels by frequency bands given audio samples, on
-a raspberry pi (aka power spectrum).
-It uses the GPU FFT lib from Andrew Holme (see http://www.aholme.co.uk/GPU_FFT/Main.htm).
+## Features
 
-I compared implementations using cython and ctypes, and the ctypes solution was slower
-(overhead due to the input data transformation for the C call).
+- Perform real-time audio processing using FFT.
+- Divide audio frequencies into custom bands and compute power levels.
+- Efficient computation using the highly optimized **FFTW** library.
 
-In my case it's 7 times faster than using pure python and Numpy.
+## Prerequisites
 
-## Dependencies
+Before using this library, you will need to install the following dependencies:
 
-The GPU FFT lib sources which can be found here http://www.aholme.co.uk/GPU_FFT/Main.htm.
-It is also directly in raspbian.
-You will also need Cython.
+### 1. FFTW library:
+You can install **FFTW** on a Raspberry Pi with:
+
+```bash
+sudo apt-get install libfftw3-dev
+```
+### 2. Cython:
+Install **Cython** with pip:
+```bash
+pip install cython
+```
+
+### 3. NumPy:
+Install **NumPy**
+```bash
+pip install numpy
+```
 
 ## Installation
-
-    $ python setup.py build_ext --inplace
-
+After installing the necessary dependencies, you can build the Python extension with the following command:
+```bash
+python setup.py build_ext --inplace
+```
 This generates the `rpi_audio_levels.so`, be sure to add its directory to the PYTHONPATH
 (or install it using ``sudo python setup.py install`` instead of the above command).
 
 ## Usage
 
 ```python
+import numpy as np
 from rpi_audio_levels import AudioLevels
-# We will give chunks of 2**11 audio samples
-DATA_SIZE = 11
-# We want to extract levels for 6 frequency bands
-BANDS_COUNT = 6
-# Preliminary call to prepare things
-audio_levels = AudioLevels(DATA_SIZE, BANDS_COUNT)
 
-# Example of 6 arbitrary frequency bands. Indexes must be between 0 and 2**(DATA_SIZE - 1).
-bands_indexes = [[0,100], [100,200], [200,600], [600,700], [700,800], [800,1024]]
-# (Here the indexes come from nowhere, but you could have some algorithm to convert
-# start/end frequencies of each band you want to their corresponding indexes within
-# the FFT data)
+# Create an instance of AudioLevels, with an FFT size of 10 and a bands count of 5
+audio_levels = AudioLevels(10, 5)
 
-# Then retrieve audio levels each time you have new data.
-levels, means, stds = audio_levels.compute(data, bands_indexes)
+# Define the frequency bands you want to analyze (e.g., 5 bands)
+frequency_bands_indexes = [[0, 200], [200, 400], [400, 600], [600, 800], [800, 1000]]
+
+# Generate some dummy audio data for testing
+data = np.random.rand(1024).astype(np.float32)  # Simulated audio data
+
+# Compute the audio levels, means, and standard deviations for the specified bands
+levels, means, stds = audio_levels.compute(data, frequency_bands_indexes)
+
+print("Levels:", levels)
+print("Means:", means)
+print("Standard Deviations:", stds)
 ```
 
 The returned value is a tuple of tuple:
@@ -51,6 +67,13 @@ The returned value is a tuple of tuple:
   - stds: standard deviation for each band
 
 ``data`` must be a numpy array of 2**DATA_SIZE real data with float dtype (np.float32),
-with only 1 dimension.
-You may want to preliminary multiply your audio data chunks with a hanning window (for example)
-before providing them to the ``compute()`` method.
+with only 1 dimension.  
+
+### How It Works
+**FFTW**: The **FFTW** library is used for fast Fourier transform (FFT) computations, which convert time-domain audio signals into their frequency-domain representations. This allows us to analyze the power levels across specific frequency bands.  
+**Frequency Bands**: You define the frequency bands you're interested in (e.g., low, mid, high frequencies), and the library computes the audio levels for each band.  
+
+### Methods
+**prepare(fft_size, bands_count)**: Initializes the FFT computation with the given size and number of bands.  
+**compute(data, frequency_bands_indexes)**: Computes the audio levels, means, and standard deviations for the given frequency bands.  
+**release()**: Frees up the resources when FFT computation is no longer needed.  
